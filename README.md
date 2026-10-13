@@ -55,9 +55,12 @@ No system/vendor files, USB configuration, firmware or boot integration are chan
 ### Validation / limitations
 
 The setting was read and written successfully on firmware I610UEU2AZF3 and its
-saved value was verified in SettingsProvider storage. The module itself has host
-tests with a mock settings command; it has not yet been installed, activated, or
-tested across a headset reboot. UI behavior and boot persistence remain unverified.
+saved value was verified in SettingsProvider storage. All nine host tests pass.
+Version 0.1.0 was installed through KernelSU GXR 1.0.8's reviewed installer;
+all eight payload checksums passed. After separately enabling it, the one-shot
+service changed the preference from 0 to 1 and status verified the saved original
+value of 0. No restart was performed for that activation. UI behavior, restoration
+on the headset and automatic reapplication across reboot remain unverified.
 
 ### Build and test
 
