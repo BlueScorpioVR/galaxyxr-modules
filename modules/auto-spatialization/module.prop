@@ -1,0 +1,7 @@
+id=gxr_bsvr_auto_spatialization
+name=Galaxy XR Auto-spatialization Default ON
+version=0.1.0
+versionCode=1
+author=BlueScorpioVR
+description=Enable the saved Labs auto-spatialization preference once at rooted service startup. Does not bypass thermal or window restrictions. Installs disabled.
+updateJson=https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/updates/auto-spatialization.json

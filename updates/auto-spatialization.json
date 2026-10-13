@@ -1,0 +1,7 @@
+{
+  "version": "0.1.0",
+  "versionCode": 1,
+  "zipUrl": "https://github.com/BlueScorpioVR/galaxyxr-modules/releases/download/auto-spatialization/v0.1.0/gxr-bsvr-auto-spatialization-0.1.0-auto.zip",
+  "changelog": "https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/changelogs/auto-spatialization.md",
+  "sha256": "bfb08d8d49cbcedc9110778d650bf8775366df20eb46d33f49ab471e38ee7d8e"
+}

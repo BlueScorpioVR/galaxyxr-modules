@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "name": "BlueScorpioVR Galaxy XR Modules",
+  "modules": [
+    {
+      "id": "gxr_bsvr_auto_spatialization",
+      "name": "Auto-spatialization Default ON",
+      "description": "Enable the Labs preference at rooted service startup without bypassing thermal or window limits.",
+      "updateJson": "https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/updates/auto-spatialization.json"
+    }
+  ]
+}
