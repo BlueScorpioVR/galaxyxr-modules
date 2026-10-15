@@ -4,6 +4,22 @@ Personal, experimental modules for Samsung Galaxy XR (SM-I610), using
 [KernelSU GXR](https://github.com/4uva4ek/KernelSU-GXR).
 Not affiliated with Samsung, Google or the KernelSU GXR maintainers.
 
+## Bluetooth Xbox unknown-key recovery
+
+Experimental rooted workaround for the Galaxy XR hand-navigation lock that can
+follow a Bluetooth Xbox reconnect. It releases only Linux `KEY_UNKNOWN` (scan
+code 240) when that key is held by a Microsoft Bluetooth Xbox Controller or
+Gamepad. It does not send Home, remap buttons, or forward the controller into
+Steam Link VR.
+
+Install from this Sources catalogue, leave it disabled until you enable it, then
+reconnect the controller. It starts with normal rooted KernelSU service startup
+and cannot run without active root. Disable it in KernelSU, or run
+`su -c 'sh /data/adb/modules/gxr_bsvr_xbox_unknown_key/action.sh off'`.
+
+Product `0b22` was verified on a Galaxy XR. Other Microsoft Bluetooth Xbox models
+are eligible but not yet live-tested.
+
 ## Auto-spatialization default ON
 
 Sets user 0's Android System setting `auto_spatialization_settings` to `1`

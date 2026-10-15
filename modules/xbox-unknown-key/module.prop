@@ -1,0 +1,7 @@
+id=gxr_bsvr_xbox_unknown_key
+name=Galaxy XR Bluetooth Xbox Unknown-Key Recovery
+version=0.1.0
+versionCode=1
+author=BlueScorpioVR
+description=Experimental rooted recovery: release held KEY_UNKNOWN (240) once per Bluetooth Microsoft Xbox connection. Never sends Home or changes gamepad buttons/axes. Installs disabled.
+updateJson=https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/updates/xbox-unknown-key.json
