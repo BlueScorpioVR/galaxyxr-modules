@@ -35,12 +35,16 @@ on)
     [ "$(id -u)" = 0 ] || { echo 'Error: root required'; exit 1; }
     [ ! -f "$MODDIR/remove" ] || { echo 'Error: module is marked for removal'; exit 1; }
     rm -f "$MODDIR/disable"
-    nohup sh "$MODDIR/auto.sh" report >/dev/null 2>&1 &
-    echo 'Enabled; publishing now.'
+    nohup sh "$MODDIR/auto.sh" watch >/dev/null 2>&1 &
+    echo 'Enabled; watching for port assignments.'
     ;;
 off)
     touch "$MODDIR/disable"
-    echo 'Disabled; no further reports until re-enabled.'
+    if [ -f "$PIDFILE" ]; then
+        kill $(cat "$PIDFILE") 2>/dev/null
+        rm -f "$PIDFILE"
+    fi
+    echo 'Disabled; reporter stopped.'
     ;;
 *) usage ;;
 esac

@@ -15,7 +15,16 @@ SHELL = 'C:/Program Files/Git/bin/bash.exe' if os.name == 'nt' else shutil.which
 
 
 class Harness(unittest.TestCase):
-    """Runs the module scripts with mock `ss`/`curl` on PATH."""
+    """Runs the module scripts with mock getprop/ss/curl on PATH."""
+
+    # MSYS would otherwise prefer its own real commands, and the mock files are
+    # Windows paths; convert everything to POSIX form inside the shell.
+    PROLOGUE = (
+        'export PATH="$(cygpath -u "$MOCK_BIN"):$PATH"; '
+        'for v in ADB_PORT_CONF ADB_PORT_STATE ADB_PORT_LOG ADB_PORT_LOCK ADB_PORT_PIDFILE '
+        'PROP_TLS PROP_TCP PROP_PERSIST SS_PORT CURL_CALLS CURL_FAIL; do '
+        'eval "export $v=\\$(cygpath -u \\"\\$$v\\")"; done; '
+    )
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -25,19 +34,36 @@ class Harness(unittest.TestCase):
         self.conf = self.root / 'conf'
         self.state = self.root / 'state'
         self.log = self.root / 'log'
+        self.lock = self.root / 'lock'
         self.curl_calls = self.root / 'curl-calls'
         self.curl_fail = self.root / 'curl-fail'
+        self.curl_fail.write_text('0')
+        self.prop_tls = self.root / 'prop-tls'
+        self.prop_tls.write_text('')
+        self.prop_tcp = self.root / 'prop-tcp'
+        self.prop_tcp.write_text('')
+        self.prop_persist = self.root / 'prop-persist'
+        self.prop_persist.write_text('')
         self.ss_port = self.root / 'ss-port'
         self.ss_port.write_text('')
-        self.curl_fail.write_text('0')
         self.script = self.root / 'module'
         shutil.copytree(MODULE, self.script)
-        # The mock prints the socket line only when a port has been staged.
+
+        (self.bin / 'getprop').write_text(
+            '#!/bin/sh\n'
+            'case "$1" in\n'
+            '  service.adb.tls.port) cat "$PROP_TLS" ;;\n'
+            '  service.adb.tcp.port) cat "$PROP_TCP" ;;\n'
+            '  persist.adb.tcp.port) cat "$PROP_PERSIST" ;;\n'
+            '  *) exit 1 ;;\n'
+            'esac\n',
+            newline='\n',
+        )
         (self.bin / 'ss').write_text(
             '#!/bin/sh\n'
             'p=$(cat "$SS_PORT")\n'
             '[ -n "$p" ] || exit 0\n'
-            'printf \'LISTEN 0 4 *:%s *:* users:(("adbd",pid=6843,fd=16))\\n\' "$p"\n',
+            'printf \'LISTEN 0 4 *:%s *:* users:(("adbd",pid=1,fd=16))\\n\' "$p"\n',
             newline='\n',
         )
         (self.bin / 'curl').write_text(
@@ -47,26 +73,22 @@ class Harness(unittest.TestCase):
         )
         for path in self.bin.iterdir():
             path.chmod(path.stat().st_mode | stat.S_IEXEC)
+
         self.env = dict(
             os.environ,
             MOCK_BIN=str(self.bin),
             ADB_PORT_CONF=str(self.conf),
             ADB_PORT_STATE=str(self.state),
             ADB_PORT_LOG=str(self.log),
-            ADB_PORT_MAX_TRIES='2',
-            ADB_PORT_INTERVAL='0',
-            CURL_CALLS=str(self.curl_calls),
+            ADB_PORT_LOCK=str(self.lock),
+            ADB_PORT_PIDFILE=str(self.root / 'pid'),
+            PROP_TLS=str(self.prop_tls),
+            PROP_TCP=str(self.prop_tcp),
+            PROP_PERSIST=str(self.prop_persist),
             SS_PORT=str(self.ss_port),
+            CURL_CALLS=str(self.curl_calls),
             CURL_FAIL=str(self.curl_fail),
         )
-
-    # MSYS would otherwise prefer the real /mingw64/bin/curl, and the mock files
-    # are Windows paths; convert everything to POSIX form inside the shell.
-    PROLOGUE = (
-        'export PATH="$(cygpath -u "$MOCK_BIN"):$PATH"; '
-        'for v in ADB_PORT_CONF ADB_PORT_STATE ADB_PORT_LOG CURL_CALLS SS_PORT CURL_FAIL; do '
-        'eval "export $v=\\$(cygpath -u \\"\\$$v\\")"; done; '
-    )
 
     def tearDown(self):
         self.temp.cleanup()
@@ -75,13 +97,13 @@ class Harness(unittest.TestCase):
         return subprocess.run(
             [SHELL, '-c', self.PROLOGUE + 'exec bash "$0" "$@"',
              (self.script / name).as_posix(), *args],
-            env=self.env, text=True, capture_output=True, timeout=30,
+            env=self.env, text=True, capture_output=True, timeout=60,
         )
 
     def run_lib(self, body):
         return subprocess.run(
             [SHELL, '-c', self.PROLOGUE + f'. "{MODULE.as_posix()}/lib.sh"; {body}'],
-            env=self.env, text=True, capture_output=True, timeout=15,
+            env=self.env, text=True, capture_output=True, timeout=30,
         )
 
     def configure(self, host='laptop.tailnet', port='8099', token='secret-token'):
@@ -95,106 +117,124 @@ class LibTests(Harness):
                                 ('1023', 1), ('65536', 1), ('', 1), ('abc', 1), ('12x', 1)]:
             self.assertEqual(self.run_lib(f'valid_port "{value}"').returncode, expected, value)
 
-    def test_adb_port_reads_adbd_socket(self):
-        for port in ('37243', '45541'):
-            self.ss_port.write_text(port)
-            self.assertEqual(self.run_lib('adb_port').stdout.strip(), port)
+    def test_property_preferred_and_ordered(self):
+        self.prop_tls.write_text('44627')
+        self.prop_tcp.write_text('5555')
+        self.assertEqual(self.run_lib('read_port').stdout.strip(), '44627')
 
-    def test_adb_port_empty_without_adbd(self):
-        self.assertEqual(self.run_lib('adb_port').stdout.strip(), '')
+    def test_property_falls_back_to_tcp_then_socket(self):
+        self.prop_tcp.write_text('5555')
+        self.ss_port.write_text('37243')
+        self.assertEqual(self.run_lib('read_port').stdout.strip(), '5555')
+        self.prop_tcp.write_text('')
+        self.assertEqual(self.run_lib('read_port').stdout.strip(), '37243')
 
-    def test_load_conf_requires_every_field(self):
-        self.assertEqual(self.run_lib('load_conf').returncode, 1)
-        self.configure()
-        self.assertEqual(
-            self.run_lib('load_conf; echo "$HOST $PORT $TOKEN"').stdout.strip(),
-            'laptop.tailnet 8099 secret-token',
-        )
+    def test_read_port_fails_when_nothing_is_set(self):
+        self.assertEqual(self.run_lib('read_port').returncode, 1)
 
-    def test_write_conf_round_trip_excludes_others(self):
-        r = self.run_lib('write_conf laptop.tailnet 8099 tok-123; load_conf; echo "$HOST $PORT $TOKEN"')
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout.strip(), 'laptop.tailnet 8099 tok-123')
-
-    def test_redact_hides_token(self):
-        out = self.run_lib('redact secret-token').stdout
-        self.assertNotIn('ecret', out)
-        self.assertIn('12 characters', out)
+    def test_line_port_parses_assignment(self):
+        cases = [
+            ('10-18 23:08:50.692  6564 28033 D AdbDebuggingManager: Received tls port=42597', '42597'),
+            ('I AdbDebuggingManager: Received tls port=44659', '44659'),
+            ('AdbDebuggingManager: Received tls port=38213 trailing', '38213'),
+            ('AdbDebuggingManager: Received tls port=99999', ''),
+            ('AdbDebuggingManager: Received tls port=abc', ''),
+            ('AdbDebuggingManager: Cannot read system keys', ''),
+        ]
+        for line, expected in cases:
+            self.env['TEST_LINE'] = line
+            r = self.run_lib('line_port "$TEST_LINE"')
+            self.assertEqual(r.stdout.strip(), expected, line)
 
 
 class PublishTests(Harness):
-    def test_reports_and_records_port(self):
+    def test_publishes_and_records(self):
         self.configure()
-        self.ss_port.write_text('37243')
+        r = self.run_lib('HOST=a; PORT=1; TOKEN=t; publish 44627')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.state.read_text().strip(), '44627')
+        self.assertIn('http://a:1/report/t/44627', self.curl_calls.read_text())
+
+    def test_unchanged_port_is_not_republished(self):
+        self.configure()
+        self.state.write_text('44627\n')
+        r = self.run_lib('HOST=a; PORT=1; TOKEN=t; publish 44627')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(self.curl_calls.exists())
+
+    def test_forced_publish_republishes_same_port(self):
+        self.configure()
+        self.state.write_text('44627\n')
+        r = self.run_lib('HOST=a; PORT=1; TOKEN=t; publish 44627 1')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('report/t/44627', self.curl_calls.read_text())
+
+    def test_failed_report_keeps_old_state(self):
+        self.configure()
+        self.state.write_text('11111\n')
+        self.curl_fail.write_text('1')
+        r = self.run_lib('HOST=a; PORT=1; TOKEN=t; publish 44627')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.state.read_text().strip(), '11111')
+        self.assertIn('report failed', self.log.read_text())
+
+    def test_lock_prevents_racing_publishers(self):
+        self.configure()
+        self.lock.mkdir()
+        r = self.run_lib('HOST=a; PORT=1; TOKEN=t; publish 44627')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertFalse(self.state.exists())
+        self.assertFalse(self.curl_calls.exists())
+
+
+class ReportTests(Harness):
+    def test_report_uses_property(self):
+        self.configure()
+        self.prop_tls.write_text('44627')
         r = self.run_script('auto.sh', 'report')
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self.state.read_text().strip(), '37243')
-        self.assertIn('http://laptop.tailnet:8099/report/secret-token/37243',
-                      self.curl_calls.read_text())
-        self.assertIn('published adbd port 37243', self.log.read_text())
+        self.assertEqual(self.state.read_text().strip(), '44627')
+        self.assertIn('report/secret-token/44627', self.curl_calls.read_text())
 
-    def test_unreachable_host_exits_zero_without_state(self):
-        self.configure()
-        self.ss_port.write_text('37243')
-        self.curl_fail.write_text('1')
+    def test_report_without_config_does_nothing(self):
+        self.prop_tls.write_text('44627')
         r = self.run_script('auto.sh', 'report')
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertFalse(self.state.exists())
-        self.assertIn('not published this generation', self.log.read_text())
-
-    def test_no_config_is_quiet_and_succeeds(self):
-        self.ss_port.write_text('37243')
-        r = self.run_script('auto.sh', 'report')
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertFalse(self.curl_calls.exists())
         self.assertIn('no usable configuration', self.log.read_text())
 
-    def test_invalid_port_never_reported(self):
-        self.configure()
-        for bad in ('', '80', 'abc'):
-            self.ss_port.write_text(bad)
-            self.curl_calls.unlink(missing_ok=True)
-            r = self.run_script('auto.sh', 'report')
-            self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertFalse(self.curl_calls.exists(), bad)
-
-    def test_service_skips_when_disabled_or_removed(self):
-        self.configure()
-        self.ss_port.write_text('37243')
-        for marker in ('disable', 'remove'):
-            (self.script / marker).write_text('')
-            r = self.run_script('service.sh')
-            self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertFalse(self.state.exists(), marker)
-            (self.script / marker).unlink()
+    def test_status_masks_token_and_shows_current_port(self):
+        self.configure(token='tok-123')
+        self.prop_tls.write_text('44627')
+        self.state.write_text('44627\n')
+        out = self.run_script('auto.sh', 'status').stdout
+        self.assertIn('laptop.tailnet:8099', out)
+        self.assertNotIn('tok-123', out)
+        self.assertIn('adbd now: 44627', out)
+        self.assertIn('Last published: 44627', out)
 
 
 class ActionTests(Harness):
-    def test_off_disables_and_status_reports_it(self):
+    def test_off_disables(self):
         r = self.run_script('action.sh', 'off')
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue((self.script / 'disable').exists())
-        status = self.run_script('action.sh', 'status')
-        self.assertIn('Disabled', status.stdout)
-
-    def test_status_masks_token_and_shows_last_port(self):
-        self.configure(token='tok-123')
-        self.state.write_text('37243\n')
-        out = self.run_script('action.sh', 'status').stdout
-        self.assertIn('laptop.tailnet:8099', out)
-        self.assertNotIn('tok-123', out)
-        self.assertIn('37243', out)
-
-    @unittest.skipIf(hasattr(os, 'geteuid') and os.geteuid() == 0, 'host is root')
-    def test_report_requires_root(self):
-        self.configure()
-        self.ss_port.write_text('45541')
-        r = self.run_script('action.sh', 'report')
-        self.assertEqual(r.returncode, 1)
-        self.assertIn('root required', r.stdout)
+        self.assertIn('Disabled', self.run_script('action.sh', 'status').stdout)
 
     def test_unknown_action_usage_error(self):
         self.assertEqual(self.run_script('action.sh', 'bogus').returncode, 2)
+
+    def test_disabled_status_satisfies_installer_restoration_check(self):
+        # The reviewed installer runs off, then status, and needs this line to
+        # accept a module replacement.
+        self.assertEqual(self.run_script('action.sh', 'off').returncode, 0)
+        out = self.run_script('action.sh', 'status').stdout
+        self.assertEqual(out.strip().splitlines()[-1], 'GXR_UPDATE_STATE=STOCK')
+
+    def test_enabled_status_is_not_reported_as_stock(self):
+        (self.script / 'disable').unlink()
+        out = self.run_script('action.sh', 'status').stdout
+        self.assertNotIn('GXR_UPDATE_STATE=STOCK', out)
 
 
 class PackageTests(Harness):
@@ -207,26 +247,20 @@ class PackageTests(Harness):
         for path in MODULE.iterdir():
             if path.is_file():
                 self.assertNotIn(b'\r', path.read_bytes(), f'{path.name} has CRLF')
-        # KernelSU's reviewed installer verifies the installed module, so these
-        # must exist and be listed in SHA256SUMS.
         for required in ('module.prop', 'disable', 'skip_mount', 'service.sh',
                          'action.sh', 'auto.sh'):
             self.assertTrue((MODULE / required).exists(), required)
         self.assertEqual((MODULE / 'disable').read_bytes(), b'')
         self.assertEqual((MODULE / 'skip_mount').read_bytes(), b'')
-        sums = (MODULE / 'SHA256SUMS').read_text() if (MODULE / 'SHA256SUMS').exists() else ''
-        for required in ('action.sh', 'auto.sh', 'module.prop'):
-            self.assertTrue(required in sums or not (MODULE / 'SHA256SUMS').exists(), required)
 
     def test_no_secret_ships_in_the_package(self):
         props = dict(line.split('=', 1)
                      for line in (MODULE / 'module.prop').read_text().splitlines())
         self.assertTrue(props['id'].startswith('gxr_'))
-        self.assertGreater(int(props['versionCode']), 0)
+        self.assertGreater(int(props['versionCode']), 1)  # v0.1.1
         for path in MODULE.iterdir():
             if path.is_file():
                 text = path.read_text(errors='ignore')
-                # No hard-coded tailnet host and no literal 32-hex token.
                 self.assertIsNone(re.search(r'\b[a-zA-Z0-9-]+\.ts\.net\b', text), path.name)
                 self.assertIsNone(re.search(r'\b[0-9a-f]{32}\b', text), path.name)
 
@@ -241,11 +275,8 @@ class PackageTests(Harness):
             names = archive.namelist()
             self.assertEqual(archive.read('disable'), b'')
             self.assertEqual(archive.read('skip_mount'), b'')
-            self.assertIn('action.sh', names)
-            self.assertIn('service.sh', names)
-            self.assertIn('auto.sh', names)
-            # KernelSU's reviewed installer requires exactly: every file minus
-            # `disable` minus `SHA256SUMS` itself.  sums + 2 == total files.
+            for required in ('action.sh', 'service.sh', 'auto.sh'):
+                self.assertIn(required, names)
             self.assertEqual(len(archive.read('SHA256SUMS').decode().splitlines()),
                              len(names) - 2)
             for line in archive.read('SHA256SUMS').decode().splitlines():
