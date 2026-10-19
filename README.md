@@ -36,6 +36,13 @@ state and reads only a property plus logcat — no polling of the socket table.
 Any path between the two works: a shared LAN, or a tailnet such as Tailscale when
 they are on different networks.
 
+**On a shared LAN you may not need this at all.** Android advertises wireless
+debugging over mDNS, adb can attach to an already-paired headset on its own, and
+`adb mdns services` shows the current port. The module matters when the two are on
+different networks, when the LAN filters multicast, or when a script or agent needs
+the port without interactive discovery — see the module README for the full
+comparison.
+
 ### Setup
 
 1. On the PC, copy `tools/port-listener.py` to a private directory and run it. The

@@ -15,6 +15,21 @@ A one-shot report at the service stage is too early: on the reference device the
 framework assigned the TLS port roughly two minutes *after* that stage, leaving
 the published value stale. This module reports on the assignment event instead.
 
+## When you may not need this
+
+If the headset and PC share a LAN and you only connect by hand, Android's wireless
+debugging already advertises itself over mDNS, and adb can find and attach to the
+paired device without a port. `adb mdns services` even prints the current port, so
+on a LAN that is a quick manual fallback too.
+
+This module is for what mDNS cannot reach:
+
+* the PC and headset on **different networks** (a tailnet such as Tailscale, or a
+  VPN);
+* a LAN that **blocks multicast or isolates clients**, where discovery stays empty;
+* **scripts, CI or agents**, which cannot rely on adb's interactive discovery and
+  need a stable place to read the port.
+
 ## How it works
 
 `service.sh` runs `auto.sh watch` for the whole boot:
