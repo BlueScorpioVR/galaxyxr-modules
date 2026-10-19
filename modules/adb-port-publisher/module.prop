@@ -1,0 +1,6 @@
+id=gxr_bsvr_adb_port_publisher
+name=Galaxy XR ADB Port Publisher
+version=0.1.0
+versionCode=1
+author=BlueScorpioVR
+description=Reports the headset's wireless-debugging (ADB) port to a host on the tailnet, so adb can reconnect after a reboot or soft restart without reading the changing port off the device. Reads only a local socket list. Installs disabled; configure with action.sh.
