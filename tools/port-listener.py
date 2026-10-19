@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Receive the Galaxy XR headset's wireless-debugging (ADB) port over Tailscale.
+"""Receive the Galaxy XR headset's wireless-debugging (ADB) port over the network.
 
 The headset's adbd port is chosen by Android and changes on every reboot and
 KernelSU soft restart, so there is no fixed address to ``adb connect`` to. The
@@ -12,17 +12,19 @@ Endpoints:
     GET /port                    return the last recorded port
 
 Writes require the token. The listener binds 0.0.0.0 by default, so it is
-reachable over the tailnet and the local LAN; never expose it publicly.
+reachable on the local LAN and on any VPN you run between the two machines; never
+expose it publicly.
 
 Run it on the PC that stays on while you use the headset:
 
     python port-listener.py                  # first run creates token.txt
     python port-listener.py --port 8099 --bind 0.0.0.0 --dir .
 
-Then configure the headset with the printed token:
+Then configure the headset with the printed token and an address it can reach —
+the PC's LAN IP, or a tailnet name if they are on different networks:
 
     su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh \
-        configure <this-pc>.<tailnet>.ts.net 8099 <token>'
+        configure <pc-address> 8099 <token>'
 
 The port must match ``--port`` here and the module's configured port.
 """

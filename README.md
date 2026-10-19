@@ -22,17 +22,19 @@ are eligible but not yet live-tested.
 
 ## ADB port publisher
 
-Reports the headset's wireless-debugging (ADB) port to a PC on the tailnet, so
-`adb connect` keeps working after every reboot and soft restart. Android assigns
-that port after boot and can reassign it later, and mDNS does not cross Tailscale,
-so there is no stable address to connect to.
+Reports the headset's wireless-debugging (ADB) port to a small receiver on a PC,
+so `adb connect` keeps working after every reboot and soft restart. Android
+assigns that port after boot and can reassign it later, and mDNS does not cross
+networks, so there is no stable address to connect to.
 
 The module reacts to the framework's own assignment event
 (`AdbDebuggingManager: Received tls port=<n>` in logcat), re-reads the
-authoritative `service.adb.tls.port` property, and reports the value to a small
-receiver on the PC. A five-minute property reconcile is the safety net. It changes
-no system state and reads only a property plus logcat — no polling of the socket
-table.
+authoritative `service.adb.tls.port` property, and reports the value to the
+receiver. A five-minute property reconcile is the safety net. It changes no system
+state and reads only a property plus logcat — no polling of the socket table.
+
+Any path between the two works: a shared LAN, or a tailnet such as Tailscale when
+they are on different networks.
 
 ### Setup
 
@@ -40,7 +42,7 @@ table.
    first run creates `token.txt` and prints the token; it listens on
    `0.0.0.0:8099` and writes the latest port to `adb-port.txt`.
 2. Install this package with the reviewed GXR installer, then configure it with
-   that token:
+   that token and an address the headset can reach (LAN IP or tailnet name):
 
    ```sh
    su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh configure <pc-host> 8099 <token>'
@@ -69,7 +71,7 @@ log live outside the module in `/data/adb/xr-adb-port.*` and are left in place.
 On the reference headset it published two port reassignments within one boot, and
 ignored a deliberately wrong log value in favour of the property. The packaged ZIP
 installed through the reviewed GXR installer with all 11 checksums verified. It
-needs active root, and the headset must be awake and online in Tailscale.
+needs active root, and the headset must be awake and reachable from the PC.
 
 ### Build and test
 

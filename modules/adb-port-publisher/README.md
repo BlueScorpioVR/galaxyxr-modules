@@ -1,14 +1,15 @@
 # Galaxy XR ADB port publisher
 
-Reports the headset's wireless-debugging (ADB) port to a PC on the tailnet, so
-`adb connect` works after every reboot and soft restart without reading the
+Reports the headset's wireless-debugging (ADB) port to a small receiver on a PC,
+so `adb connect` works after every reboot and soft restart without reading the
 changing port off the headset.
 
 ## Why
 
 Android assigns the wireless-debugging port after boot and can reassign it later,
 and it changes on every reboot **and every KernelSU soft restart**, so there is no
-fixed address to connect to. mDNS discovery does not cross Tailscale.
+fixed address to connect to. mDNS discovery does not cross networks, so it is no
+help when the PC sits on another subnet or behind a VPN such as Tailscale.
 
 A one-shot report at the service stage is too early: on the reference device the
 framework assigned the TLS port roughly two minutes *after* that stage, leaving
@@ -40,12 +41,19 @@ property plus logcat.
 
 ## Setup
 
-Two sides: a receiver on the PC, and this module on the headset. The PC must be
-reachable from the headset over Tailscale (both devices on the same tailnet).
+Two sides: a receiver on the PC, and this module on the headset. The only network
+requirement is that the headset can reach the PC on the receiver's TCP port.
+
+* **Same LAN:** use the PC's LAN address. No VPN needed.
+* **Different networks:** a tailnet such as Tailscale is the easy path; a stable
+  MagicDNS name also survives DHCP changes better than a LAN IP.
+
+Whichever you use, the module needs it at configure time and the PC needs to reach
+the headset's wireless-debugging port for `adb connect`.
 
 ### 1. PC side (receiver)
 
-Requirements: Python 3, `adb`, and Tailscale running.
+Requirements: Python 3 and `adb`, plus network reachability between the two.
 
 1. Copy `tools/port-listener.py` from this repository into a **private** directory
    that is not a git checkout, for example `%USERPROFILE%\xr-adb-port\`.
@@ -89,7 +97,8 @@ Notes:
 * `--port`, `--bind` and `--dir` let you change the port, bind address and state
   directory. The port must match the value configured on the headset.
 * Leaving it bound to `0.0.0.0` is convenient on a home LAN; writes still require
-  the token. Do **not** expose it through Tailscale Funnel or a public port.
+  the token. Do **not** expose it through a public port or an internet-facing
+  tunnel (Tailscale Funnel included).
 * If the listener is down when the headset assigns a port, the report fails but the
   saved value is left alone; the module retries on the next assignment or on the
   five-minute reconcile once the listener is back.
@@ -102,8 +111,9 @@ Install the package (it installs **disabled**) and keep the token from step 1:
 su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh configure <pc-host> 8099 <token>'
 ```
 
-`<pc-host>` is the PC's tailnet name, e.g. `mypc.<tailnet>.ts.net`, or its
-`100.x` address. Configuration is stored outside the module at
+`<pc-host>` is any address the headset can reach: the PC's LAN IP when both are on
+the same network, or a tailnet name such as `mypc.<tailnet>.ts.net` or its `100.x`
+address when they are not. Configuration is stored outside the module at
 `/data/adb/xr-adb-port.conf` (mode 600), so it survives module updates and is never
 shipped in a package.
 
@@ -121,7 +131,7 @@ value and the log.
 
 ```powershell
 $port = Get-Content "$env:USERPROFILE\xr-adb-port\adb-port.txt"
-adb connect <headset-tailnet-ip>:$port
+adb connect <headset-ip>:$port
 adb devices
 ```
 
@@ -154,7 +164,8 @@ requests:
 * The event watcher depends on the `AdbDebuggingManager` log message. If a future
   firmware changes it, the five-minute reconcile still recovers the port.
 * Needs active root; `service.adb.tls.port` is not readable by the shell user.
-* The headset must be awake and online in Tailscale.
+* The headset must be awake and reachable from the PC over whatever path you
+  configured (LAN or tailnet).
 
 ## Uninstall
 
