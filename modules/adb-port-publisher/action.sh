@@ -35,6 +35,7 @@ on)
     [ "$(id -u)" = 0 ] || { echo 'Error: root required'; exit 1; }
     [ ! -f "$MODDIR/remove" ] || { echo 'Error: module is marked for removal'; exit 1; }
     rm -f "$MODDIR/disable"
+    stop_existing
     nohup sh "$MODDIR/auto.sh" watch >/dev/null 2>&1 &
     echo 'Enabled; watching for port assignments.'
     ;;

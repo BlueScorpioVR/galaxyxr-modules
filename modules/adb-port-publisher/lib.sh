@@ -81,6 +81,15 @@ line_port() {
     printf '%s\n' "$p"
 }
 
+# Stop any watcher recorded in the pidfile. Called before starting a new one so a
+# soft restart, a second `action.sh on`, or a service rerun cannot leave two
+# watcher trees publishing concurrently.
+stop_existing() {
+    [ -f "$PIDFILE" ] || return 0
+    kill $(cat "$PIDFILE") 2>/dev/null
+    rm -f "$PIDFILE"
+}
+
 report_once() {
     curl -s -m 8 "http://$HOST:$PORT/report/$TOKEN/$1" >/dev/null 2>&1
 }

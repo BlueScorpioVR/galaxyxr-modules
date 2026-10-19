@@ -1,3 +1,12 @@
+# 0.1.2
+
+- Stop any running watcher before starting a new one. `action.sh on` used to
+  launch a second watcher while the previous one was still publishing; `watch`
+  now calls `stop_existing` too, so a soft restart or a rerun cannot leave two
+  watcher trees.
+- Add the PC-side receiver (`tools/port-listener.py`) and document the full setup
+  for both sides, including autostart.
+
 # 0.1.1
 
 - Report on the framework's port-assignment event instead of once at the service

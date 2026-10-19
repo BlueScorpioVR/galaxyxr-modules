@@ -62,6 +62,7 @@ watch() {
         log "no usable configuration at $CONF; nothing published"
         return 0
     fi
+    stop_existing
     seed
     watch_events & events_pid=$!
     watch_reconcile & reconcile_pid=$!

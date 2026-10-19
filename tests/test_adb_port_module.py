@@ -132,6 +132,14 @@ class LibTests(Harness):
     def test_read_port_fails_when_nothing_is_set(self):
         self.assertEqual(self.run_lib('read_port').returncode, 1)
 
+    def test_stop_existing_clears_a_stale_pidfile(self):
+        self.assertEqual(self.run_lib('stop_existing').returncode, 0)
+        pidfile = self.root / 'pid'
+        pidfile.write_text('999999 999998\n')
+        r = self.run_lib('stop_existing')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(pidfile.exists())
+
     def test_line_port_parses_assignment(self):
         cases = [
             ('10-18 23:08:50.692  6564 28033 D AdbDebuggingManager: Received tls port=42597', '42597'),
