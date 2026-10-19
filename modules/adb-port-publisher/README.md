@@ -1,16 +1,18 @@
 # Galaxy XR ADB port publisher
 
-Reports the headset's wireless-debugging (ADB) port to a host on the tailnet.
+Reports the headset's wireless-debugging (ADB) port to a PC on the tailnet, so
+`adb connect` works after every reboot and soft restart without reading the
+changing port off the headset.
 
 ## Why
 
 Android assigns the wireless-debugging port after boot and can reassign it later,
 and it changes on every reboot **and every KernelSU soft restart**, so there is no
-fixed address to `adb connect` to. mDNS discovery does not cross Tailscale.
+fixed address to connect to. mDNS discovery does not cross Tailscale.
 
 A one-shot report at the service stage is too early: on the reference device the
-framework assigned the TLS port roughly two minutes *after* that stage, which left
-the published value stale. v0.1.1 therefore reports on the assignment event.
+framework assigned the TLS port roughly two minutes *after* that stage, leaving
+the published value stale. This module reports on the assignment event instead.
 
 ## How it works
 
@@ -22,57 +24,142 @@ the published value stale. v0.1.1 therefore reports on the assignment event.
    value is then re-read from the property, never taken from the log line, so a
    replayed line cannot republish an older port. Idle cost is effectively zero.
 3. **Reconcile.** Every 5 minutes (`ADB_PORT_RECONCILE`), re-read the property and
-   publish if it changed. This covers a restarted watcher, a lost logcat buffer,
-   or a future firmware that renames the message.
-4. Publishing is deduplicated against the saved value and serialised with a lock,
-   so the event watcher, the reconciler and a manual report cannot race.
+   publish if it changed. Covers a restarted watcher, a lost logcat buffer, or a
+   firmware that renames the message — and retries a report that failed because
+   the PC was unreachable.
+4. Publishing is deduplicated and serialised with a lock, so the event watcher,
+   the reconciler and a manual report cannot race.
 
 The port comes from `service.adb.tls.port` (then `service.adb.tcp.port` and
-`persist.adb.tcp.port`). The old `ss -lntp` socket scan remains only as a fallback
-for legacy TCP mode: with `-p` it walks every process's fd table (~350 ms per
-call), so it is never polled.
+`persist.adb.tcp.port`). The old `ss -lntp` scan remains only as a fallback for
+legacy TCP mode: with `-p` it walks every process's fd table (~350 ms per call),
+so it is never polled.
 
-It changes no system state, exposes no service, and reads only a property plus
-logcat.
+It changes no system state, exposes no service on the headset, and reads only a
+property plus logcat.
 
-## Install and configure
+## Setup
 
-The package installs **disabled** and ships no host, port or token — configure it
-after installing:
+Two sides: a receiver on the PC, and this module on the headset. The PC must be
+reachable from the headset over Tailscale (both devices on the same tailnet).
+
+### 1. PC side (receiver)
+
+Requirements: Python 3, `adb`, and Tailscale running.
+
+1. Copy `tools/port-listener.py` from this repository into a **private** directory
+   that is not a git checkout, for example `%USERPROFILE%\xr-adb-port\`.
+2. Start it:
+
+   ```powershell
+   cd "$env:USERPROFILE\xr-adb-port"
+   python port-listener.py
+   ```
+
+   The first run creates `token.txt` (mode 600) and prints the token. It then
+   listens on `0.0.0.0:8099` and writes:
+
+   | File | Purpose |
+   | --- | --- |
+   | `token.txt` | Shared secret. Never commit or share it. |
+   | `adb-port.txt` | Last reported port (read this). |
+   | `listener.log` | Report history with the reporting peer address. |
+
+3. Check it is up. `404 unknown` is correct until the headset reports:
+
+   ```powershell
+   curl.exe http://127.0.0.1:8099/port
+   ```
+
+4. Start it automatically at login. Save this as `start-listener.cmd` next to the
+   listener, then copy it into your Startup folder
+   (`shell:startup` / `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`):
+
+   ```bat
+   @echo off
+   cd /d "%~dp0"
+   start "" pythonw port-listener.py
+   ```
+
+   On Linux/macOS use a systemd user unit or launchd job in the same way; the
+   command is `python3 port-listener.py`.
+
+Notes:
+
+* `--port`, `--bind` and `--dir` let you change the port, bind address and state
+  directory. The port must match the value configured on the headset.
+* Leaving it bound to `0.0.0.0` is convenient on a home LAN; writes still require
+  the token. Do **not** expose it through Tailscale Funnel or a public port.
+* If the listener is down when the headset assigns a port, the report fails but the
+  saved value is left alone; the module retries on the next assignment or on the
+  five-minute reconcile once the listener is back.
+
+### 2. Headset side (module)
+
+Install the package (it installs **disabled**) and keep the token from step 1:
 
 ```sh
-su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh configure <host> [port] <token>'
-su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh report'
+su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh configure <pc-host> 8099 <token>'
 ```
 
-Configuration is stored at `/data/adb/xr-adb-port.conf` (mode 600), outside the
-module, so it survives module updates and is never published. `port` defaults to
-`8099`. Then enable the module in KernelSU and soft restart, or use
-`action.sh on` to start watching immediately.
+`<pc-host>` is the PC's tailnet name, e.g. `mypc.<tailnet>.ts.net`, or its
+`100.x` address. Configuration is stored outside the module at
+`/data/adb/xr-adb-port.conf` (mode 600), so it survives module updates and is never
+shipped in a package.
 
-## Receiver
+Then enable it in KernelSU (checkbox, then soft restart), or start it immediately:
 
-The host must provide a small endpoint:
+```sh
+su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh on'
+su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh status'
+```
 
-* `GET /report/<token>/<port>` — record the port (403 on a bad token).
+`status` shows the host, a masked token, the current adbd port, the last published
+value and the log.
+
+### 3. Connect from the PC
+
+```powershell
+$port = Get-Content "$env:USERPROFILE\xr-adb-port\adb-port.txt"
+adb connect <headset-tailnet-ip>:$port
+adb devices
+```
+
+If the headset has moved port and the file has not caught up yet, retry in a few
+seconds; the watcher publishes as soon as the framework assigns the new port.
+
+## Action reference
+
+```sh
+action.sh status                              # config (token masked), adbd now, last port, log
+action.sh configure <host> [port] <token>     # port defaults to 8099
+action.sh report                              # publish now (forces a report)
+action.sh on | off                            # start / stop watching
+```
+
+`off` stops the watcher and reports `GXR_UPDATE_STATE=STOCK`, which is what the
+reviewed GXR installer checks when replacing the module.
+
+## Receiver API
+
+Any receiver can replace the bundled listener; the module only speaks these two
+requests:
+
+* `GET /report/<token>/<port>` — record the port. `403` on a bad token, `400` on an
+  out-of-range port.
 * `GET /port` — return the last recorded port.
-
-The companion implementation is a ~90-line Python listener (`port-listener.py`)
-that writes the last port to `adb-port.txt`.
-
-## Action
-
-```sh
-action.sh status                     # configuration (token redacted), adbd now, last port, log
-action.sh configure <host> [port] <token>
-action.sh report                     # publish now (forces a report)
-action.sh on | off                   # start / stop watching
-```
 
 ## Limits
 
 * The event watcher depends on the `AdbDebuggingManager` log message. If a future
-  firmware changes it, the 5-minute reconcile still recovers the port.
-* Reports are best-effort: a failed report leaves the saved value untouched and is
-  retried on the next event or reconcile.
+  firmware changes it, the five-minute reconcile still recovers the port.
 * Needs active root; `service.adb.tls.port` is not readable by the shell user.
+* The headset must be awake and online in Tailscale.
+
+## Uninstall
+
+```sh
+su -c 'ksud module uninstall gxr_bsvr_adb_port_publisher'
+# Optional: remove the configuration, state and log kept outside the module
+su -c 'rm -f /data/adb/xr-adb-port.conf /data/adb/xr-adb-port.state /data/adb/xr-adb-port.log /data/adb/xr-adb-port.pid'
+```
