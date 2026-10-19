@@ -20,6 +20,64 @@ and cannot run without active root. Disable it in KernelSU, or run
 Product `0b22` was verified on a Galaxy XR. Other Microsoft Bluetooth Xbox models
 are eligible but not yet live-tested.
 
+## ADB port publisher
+
+Reports the headset's wireless-debugging (ADB) port to a PC on the tailnet, so
+`adb connect` keeps working after every reboot and soft restart. Android assigns
+that port after boot and can reassign it later, and mDNS does not cross Tailscale,
+so there is no stable address to connect to.
+
+The module reacts to the framework's own assignment event
+(`AdbDebuggingManager: Received tls port=<n>` in logcat), re-reads the
+authoritative `service.adb.tls.port` property, and reports the value to a small
+receiver on the PC. A five-minute property reconcile is the safety net. It changes
+no system state and reads only a property plus logcat — no polling of the socket
+table.
+
+### Setup
+
+1. On the PC, copy `tools/port-listener.py` to a private directory and run it. The
+   first run creates `token.txt` and prints the token; it listens on
+   `0.0.0.0:8099` and writes the latest port to `adb-port.txt`.
+2. Install this package with the reviewed GXR installer, then configure it with
+   that token:
+
+   ```sh
+   su -c 'sh /data/adb/modules/gxr_bsvr_adb_port_publisher/action.sh configure <pc-host> 8099 <token>'
+   ```
+
+3. Enable the module and soft restart, or run `action.sh on`.
+4. Connect using the saved port:
+
+   ```powershell
+   $port = Get-Content "$env:USERPROFILE\xr-adb-port\adb-port.txt"
+   adb connect <headset-ip>:$port
+   ```
+
+Full detail — receiver autostart, the receiver API, and troubleshooting — is in
+[modules/adb-port-publisher/README.md](modules/adb-port-publisher/README.md).
+
+### Disable / uninstall
+
+`action.sh off` stops the watcher and reports `GXR_UPDATE_STATE=STOCK`. Remove it
+with `ksud module uninstall gxr_bsvr_adb_port_publisher`; configuration, state and
+log live outside the module in `/data/adb/xr-adb-port.*` and are left in place.
+
+### Validation / limitations
+
+22 host tests cover the property/line parsing, deduplication, locking and packaging.
+On the reference headset it published two port reassignments within one boot, and
+ignored a deliberately wrong log value in favour of the property. The packaged ZIP
+installed through the reviewed GXR installer with all 11 checksums verified. It
+needs active root, and the headset must be awake and online in Tailscale.
+
+### Build and test
+
+```sh
+python -m unittest discover -s tests -v
+python tools/build_adb_port.py
+```
+
 ## Auto-spatialization default ON
 
 Sets user 0's Android System setting `auto_spatialization_settings` to `1`

@@ -13,6 +13,12 @@
       "name": "Bluetooth Xbox Unknown-Key Recovery",
       "description": "Release a stuck unknown key on Bluetooth Microsoft Xbox controllers so hand navigation can recover. Does not forward gamepad input to Steam Link.",
       "updateJson": "https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/updates/xbox-unknown-key.json"
+    },
+    {
+      "id": "gxr_bsvr_adb_port_publisher",
+      "name": "ADB Port Publisher",
+      "description": "Report the headset's wireless-debugging ADB port to a PC on the tailnet whenever the framework assigns it. Requires the receiver and token described in the module README.",
+      "updateJson": "https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/updates/adb-port-publisher.json"
     }
   ]
 }

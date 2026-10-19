@@ -1,0 +1,7 @@
+{
+  "version": "0.1.2",
+  "versionCode": 3,
+  "zipUrl": "https://github.com/BlueScorpioVR/galaxyxr-modules/releases/download/adb-port-publisher/v0.1.2/gxr-bsvr-adb-port-publisher-0.1.2-disabled.zip",
+  "changelog": "https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/changelogs/adb-port-publisher.md",
+  "sha256": "43e44b9c16e312ff47c54fdac6bd4c643616c615efa0b43a8785bdd8538d456d"
+}
