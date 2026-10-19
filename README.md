@@ -96,7 +96,6 @@ protections. Android may still turn the preference/effect off later.
    under Modules → Sources, or install the release ZIP with the reviewed GXR installer.
 2. Installation leaves the module **disabled**. Enable it separately.
 3. After acquiring root, use the documented KernelSU soft restart to dispatch services.
-   On the tested setup, Tailscale had to be force-stopped before a soft restart.
 4. Action reports the preference, saved original value and last startup log; it
    does not enable the module or prove that any particular window is spatialized.
 
