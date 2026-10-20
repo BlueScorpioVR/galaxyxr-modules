@@ -1,0 +1,6 @@
+id=gxr-usb-compat
+name=Galaxy XR USB NCM + AOA (experimental)
+version=0.1.0
+versionCode=1
+author=BlueScorpioVR
+description=AZF3-only reversible USB fixes: prepare Samsung's missing ncm.0 gadget and advertise Android USB accessory support before framework startup. AOA confirmed by owner with DJI Fly; NCM network traffic unverified. No partition writes. Direct deployment only; ships disabled.

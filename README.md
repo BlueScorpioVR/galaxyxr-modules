@@ -4,6 +4,34 @@ Personal, experimental modules for Samsung Galaxy XR (SM-I610), using
 [KernelSU GXR](https://github.com/4uva4ek/KernelSU-GXR).
 Not affiliated with Samsung, Google or the KernelSU GXR maintainers.
 
+## USB NCM + AOA support
+
+Experimental USB compatibility module for **SM-I610 / I610UEU2AZF3**:
+
+- **AOA (Android Open Accessory):** makes Android advertise accessory support
+  using a firmware-checked temporary permissions-XML overlay before framework
+  startup. **Owner-confirmed working with a DJI drone in DJI Fly on 2026-10-19.**
+  Other drone/controller models and app versions are not established by that test.
+- **USB NCM:** creates the missing `ncm.0` configfs function expected by Samsung's
+  USB rules and requests NCM only from MTP/charging, preserving active accessory
+  and other explicit modes. Gadget setup was checked; **end-to-end networking
+  remains unverified**. It does not supply DHCP or IP configuration.
+- No system/vendor partition writes, automatic rooting or automatic restart.
+  Includes status/log reporting and owned-state rollback. NCM and AOA are
+  alternative USB modes, not two forced simultaneous functions.
+
+Download the disabled ZIP and checksum from the
+[USB NCM + AOA 0.1.0 release](https://github.com/BlueScorpioVR/galaxyxr-modules/releases/tag/usb-compat/v0.1.0).
+**Direct deployment only:** not available through Sources because the reviewed
+GXR installer rejects its required early-start hook; generic installation is
+intentionally blocked. The existing local module ID `gxr-usb-compat` is retained.
+See [installation, activation and recovery](modules/usb-compat/README.md) before
+enabling it. Activation needs root and a separate KernelSU soft restart; USB
+mode changes may reassign the wireless ADB port.
+
+Build with `python tools/build_usb.py`; run tests with
+`python -m unittest discover -s tests -v`.
+
 ## Bluetooth Xbox unknown-key recovery
 
 Experimental rooted workaround for the Galaxy XR hand-navigation lock that can
