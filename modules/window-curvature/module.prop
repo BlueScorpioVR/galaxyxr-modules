@@ -1,0 +1,7 @@
+id=gxr_window_curvature
+name=Galaxy XR Home Space Window Curvature
+version=0.1.2-experimental
+versionCode=102
+author=BlueScorpioVR
+description=Opt-in task-local Curve/Flatten button and strength slider for ordinary Galaxy XR Home Space app windows. Firmware-pinned, independently supervised rollback. Installs disabled. Flat resize outline remains a known limitation.
+updateJson=https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/updates/window-curvature.json

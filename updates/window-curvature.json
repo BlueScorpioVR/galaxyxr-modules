@@ -1,0 +1,7 @@
+{
+  "version": "0.1.2-experimental",
+  "versionCode": 102,
+  "zipUrl": "https://github.com/BlueScorpioVR/galaxyxr-modules/releases/download/window-curvature/v0.1.2/gxr-window-curvature-0.1.2-experimental-disabled.zip",
+  "changelog": "https://raw.githubusercontent.com/BlueScorpioVR/galaxyxr-modules/main/changelogs/window-curvature.md",
+  "sha256": "96e345a732984140fcf283231ea4c74d0c861248abf0745af0a6a9ebf2927367"
+}

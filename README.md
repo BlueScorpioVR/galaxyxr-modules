@@ -4,6 +4,32 @@ Personal, experimental modules for Samsung Galaxy XR (SM-I610), using
 [KernelSU GXR](https://github.com/4uva4ek/KernelSU-GXR).
 Not affiliated with Samsung, Google or the KernelSU GXR maintainers.
 
+## Home Space window curvature
+
+Adds independent **Curve window / Flatten window** controls and a **0-100%
+strength slider** to ordinary Galaxy XR Home Space app-window contextual menus.
+Each window starts flat and keeps its own strength while the module runs. Stock
+menu actions and stereo/auto-spatialization settings are left unchanged.
+
+**v0.1.2 makes the previous 75% bend the new 100%**, including width-limited
+windows, and repairs cleanup when Android closes a curved window's node wrapper.
+The owner confirmed the repaired version works; staged tests exercised independent
+windows, close/reopen and automatic flat rollback without restarting Android.
+
+Download the disabled ZIP and checksum from the
+[Window Curvature 0.1.2 release](https://github.com/BlueScorpioVR/galaxyxr-modules/releases/tag/window-curvature/v0.1.2),
+or install it from this repository's KernelSU GXR Sources catalogue. Installations
+and updates leave it **disabled**; enable separately and reboot/restart with
+active root using the module's [instructions](modules/window-curvature/README.md).
+Disabling restores owned windows to flat; it does not restart Android services.
+
+**Experimental; SM-I610 / I610UEU2AZF3 only.** Flat move/resize highlights and
+possible head-motion edge flicker remain known limitations. Immersive/system
+surfaces are excluded; this is not a guarantee for every app or window size.
+The module needs no PC connection during normal use and exposes no TCP listener.
+An earlier native SystemUI crash remains unattributed; the cleanup repair is not
+proof of its root cause or a guarantee of long-session stability.
+
 ## USB NCM + AOA support
 
 Experimental USB compatibility module for **SM-I610 / I610UEU2AZF3**:
@@ -182,5 +208,6 @@ python tools/build.py
 ```
 
 The build produces a deterministic ZIP and SHA-256 sidecar under `dist/`, plus the
-update feed. Only reviewed module payload files are packaged; no vendor binaries,
-device identifiers, logs or credentials are published.
+update feed. Only reviewed module payload files are packaged; no vendor firmware,
+device identifiers, logs or credentials are published. Window Curvature includes
+a pinned third-party Frida runtime with source references and license notices.

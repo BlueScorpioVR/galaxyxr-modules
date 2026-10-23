@@ -1,0 +1,6 @@
+Adds independent Curve/Flatten controls and a strength slider to ordinary
+Galaxy XR Home Space app-window menus. Installs DISABLED; enable and reboot.
+Tested with KernelSU, Chrome and OpenChamber using the standalone loader.
+Disabling restores owned windows flat without restarting Android services.
+Flat move/resize outlines and head-motion edge flicker remain limitations.
+Firmware I610UEU2AZF3 only; APK and native hashes are checked before attach.
